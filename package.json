@@ -1,0 +1,22 @@
+{
+  "name": "whatsapp-bot",
+  "version": "1.0.0",
+  "license": "MIT",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "run-manual": "node src/app.js --manual",
+    "test-shipment": "node -e 'require(\"./src/app.js\").testSingleShipment(process.argv[2])' --",
+    "test": "node test.js",
+    "logs": "tail -f logs/combined.log",
+    "errors": "tail -f logs/error.log"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.25.0",
+    "mysql2": "^3.6.0",
+    "node-cron": "^3.0.2",
+    "winston": "^3.10.0",
+    "qrcode-terminal": "^0.12.0",
+    "dotenv": "^16.3.1"
+  }
+}
