@@ -1,0 +1,42 @@
+{
+  "businessHours": {
+    "timezone": "Europe/Madrid",
+    "regularHours": {
+      "monday": { "start": "08:00", "end": "16:00" },
+      "tuesday": { "start": "08:00", "end": "16:00" },
+      "wednesday": { "start": "08:00", "end": "16:00" },
+      "thursday": { "start": "08:00", "end": "16:00" },
+      "friday": { "start": "08:00", "end": "16:00" },
+      "saturday": null,
+      "sunday": null
+    },
+    "holidays": {
+      "2025": [
+        { "date": "2025-01-01", "name": "Año Nuevo" },
+        { "date": "2025-01-06", "name": "Reyes Magos" },
+        { "date": "2025-04-17", "name": "Jueves Santo" },
+        { "date": "2025-04-18", "name": "Viernes Santo" },
+        { "date": "2025-04-21", "name": "Lunes de Pascua" },
+        { "date": "2025-05-01", "name": "Día del Trabajador" },
+        { "date": "2025-08-15", "name": "Asunción de la Virgen" },
+        { "date": "2025-10-12", "name": "Fiesta Nacional de España" },
+        { "date": "2025-11-01", "name": "Todos los Santos" },
+        { "date": "2025-12-06", "name": "Día de la Constitución" },
+        { "date": "2025-12-08", "name": "Inmaculada Concepción" },
+        { "date": "2025-12-25", "name": "Navidad" },
+        { "date": "2025-12-03", "name": "San Francisco Javier (Navarra)" }
+      ],
+      "exceptionalClosures": [
+        { "date": "2025-12-24", "name": "Nochebuena (cierre excepcional)" },
+        { "date": "2025-12-31", "name": "Nochevieja (cierre excepcional)" }
+      ]
+    },
+    "autoReplyMessages": {
+      "outOfHours": "¡Hola! 👋\n\nGracias por contactar con Toolstock.\n\nActualmente estás escribiendo fuera de nuestro horario de atención al cliente.\n\n📅 *Horario de atención:*\nLunes a Viernes, de 8:00 a 16:00 h.\n\nTu mensaje ha sido recibido y será atendido en cuanto nuestro equipo vuelva a estar disponible.\n\n¡Gracias por tu comprensión!",
+
+      "holiday": "¡Hola! 👋\n\nGracias por contactar con Toolstock.\n\nHoy es *{holidayName}*, día festivo, por lo que no estamos disponibles en este momento.\n\n📅 *Horario de atención:*\nLunes a Viernes, de 8:00 a 16:00 h.\n\nResponderemos tu mensaje el próximo día laborable.\n\n¡Gracias por tu comprensión y que tengas un excelente día!",
+
+      "weekendOrExtended": "¡Hola! 👋\n\nGracias por contactar con Toolstock.\n\n{reason}\n\n📆 Estaremos de vuelta el *{nextBusinessDay}* para atender tu mensaje.\n\n📅 *Horario de atención:*\nLunes a Viernes, de 8:00 a 16:00 h.\n\n¡Gracias por tu paciencia y que tengas un buen día!"
+    }
+  }
+}

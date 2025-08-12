@@ -34,3 +34,8 @@ Thumbs.db
 *.sln
 *.sw?
 *.config.js
+
+config/business-hours.json.backup
+logs/
+.wwebjs_auth/
+.wwebjs_cache/

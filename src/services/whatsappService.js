@@ -1,4 +1,5 @@
 const { Client, LocalAuth } = require("whatsapp-web.js");
+const AutoReplyService = require("./autoReplyService");
 const qrcode = require("qrcode-terminal");
 const logger = require("../utils/logger");
 
@@ -27,8 +28,9 @@ class WhatsAppService {
 
     this.isReady = false;
     this.isConnecting = false;
-    this.isStable = false; // Nuevo flag para estabilidad
+    this.isStable = false;
     this.setupEventHandlers();
+    this.autoReplyService = null;
   }
 
   setupEventHandlers() {
@@ -62,6 +64,17 @@ class WhatsAppService {
       this.isConnecting = false;
       this.isStable = false;
       logger.error("Authentication failed:", msg);
+    });
+
+    this.client.on("message", async (message) => {
+      if (this.autoReplyService) {
+        await this.autoReplyService.handleIncomingMessage(message);
+      }
+    });
+
+    this.client.on("message_create", async (message) => {
+      // Capturar todos los mensajes, incluyendo los propios
+      logger.debug(`Message created: ${message.body.substring(0, 50)}...`);
     });
   }
 
@@ -105,6 +118,14 @@ class WhatsAppService {
       this.isConnecting = false;
       logger.error("Failed to initialize WhatsApp:", error);
       throw error;
+    }
+
+    if (this.isReady && this.isStable) {
+      // Inicializar servicio de respuestas automáticas
+      if (!this.autoReplyService) {
+        this.autoReplyService = new AutoReplyService(this);
+        logger.info("✅ Auto-reply service initialized");
+      }
     }
   }
 
