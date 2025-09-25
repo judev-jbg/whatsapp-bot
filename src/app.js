@@ -3,14 +3,21 @@ const cron = require("node-cron");
 const WhatsAppService = require("./services/whatsappService");
 const DatabaseService = require("./services/databaseService");
 const MessageService = require("./services/messageService");
+const NotificationService = require("./services/notificationService");
+const ConnectionMonitor = require("./services/connectionMonitor");
 const RateLimiter = require("./utils/rateLimiter");
 const logger = require("./utils/logger");
 
 class ShippingNotificationApp {
   constructor() {
-    this.whatsapp = new WhatsAppService();
+    this.notifications = new NotificationService();
+    this.whatsapp = new WhatsAppService(this.notifications);
     this.database = new DatabaseService();
     this.messageService = new MessageService();
+    this.connectionMonitor = new ConnectionMonitor(
+      this.whatsapp,
+      this.notifications
+    );
     this.rateLimiter = new RateLimiter(
       parseInt(process.env.MESSAGE_DELAY_MS) || 60000
     );
@@ -21,6 +28,17 @@ class ShippingNotificationApp {
     try {
       logger.info("🚀 Initializing Shipping Notification App...");
 
+      // Verificar base de datos
+      const dbConnected = await this.database.checkConnection();
+      if (!dbConnected) {
+        throw new Error("Database connection failed");
+      }
+
+      const schemaOk = await this.database.verifyTableSchema();
+      if (!schemaOk) {
+        throw new Error("Database schema verification failed");
+      }
+
       // Inicializar WhatsApp
       await this.whatsapp.initialize();
 
@@ -28,12 +46,8 @@ class ShippingNotificationApp {
       const clientInfo = await this.whatsapp.getClientInfo();
       logger.info("WhatsApp Client Info:", clientInfo);
 
-      this.database.checkConnection();
-
-      const schemaOk = await this.database.verifyTableSchema();
-      if (!schemaOk) {
-        throw new Error("Database schema verification failed");
-      }
+      // Iniciar monitor de conexión
+      this.connectionMonitor.startMonitoring();
 
       // Configurar cron job - todos los días a las 8:30 AM
       cron.schedule(
@@ -51,6 +65,19 @@ class ShippingNotificationApp {
       logger.info("📅 Cron job scheduled for 8:30 AM daily");
     } catch (error) {
       logger.error("❌ Failed to initialize app:", error);
+
+      // Notificar error crítico
+      await this.notifications.notifyError(
+        "Error Crítico de Inicialización",
+        `La aplicación no pudo iniciarse: ${error.message}`,
+        {
+          error: error.message,
+          stack: error.stack,
+          timestamp: new Date().toISOString(),
+          action: "Revisar logs y configuración",
+        }
+      );
+
       process.exit(1);
     }
   }
@@ -66,6 +93,11 @@ class ShippingNotificationApp {
 
     try {
       logger.info("🔄 Starting shipment notification process...");
+
+      // Verificar que WhatsApp esté listo antes de procesar
+      if (!this.whatsapp.isReady || !this.whatsapp.isStable) {
+        throw new Error("WhatsApp not ready for processing shipments");
+      }
 
       // Obtener envíos pendientes
       const shipments = await this.database.getPendingShipments();
@@ -84,8 +116,13 @@ class ShippingNotificationApp {
       // Procesar cada envío
       for (const shipment of shipments) {
         try {
-          await this.processIndividualShipment(shipment);
-          successCount++;
+          const result = await this.processIndividualShipment(shipment);
+
+          if (result.reason === "NO_WHATSAPP") {
+            noWhatsAppCount++;
+          } else {
+            successCount++;
+          }
         } catch (error) {
           logger.error(`Error processing shipment ${shipment.id}:`, error);
           await this.database.updateShipmentStatus(
@@ -109,11 +146,37 @@ class ShippingNotificationApp {
         `📊 Results: ${successCount} sent, ${failedCount} failed, ${noWhatsAppCount} no WhatsApp`
       );
 
+      // Notificar resumen del proceso
+      await this.notifications.notifyInfo(
+        "Proceso de Envíos Completado",
+        `Procesamiento diario completado en ${duration.toFixed(1)} segundos`,
+        {
+          totalProcessed: shipments.length,
+          successful: successCount,
+          failed: failedCount,
+          noWhatsApp: noWhatsAppCount,
+          duration: `${duration.toFixed(1)}s`,
+          timestamp: new Date().toISOString(),
+        }
+      );
+
       // Obtener estadísticas diarias
       const dailyStats = await this.database.getDailyStats();
       logger.info("📈 Daily stats:", dailyStats);
     } catch (error) {
       logger.error("❌ Critical error in process:", error);
+
+      // Notificar error crítico en procesamiento
+      await this.notifications.notifyError(
+        "Error Crítico en Procesamiento",
+        `Error grave durante el procesamiento de envíos: ${error.message}`,
+        {
+          error: error.message,
+          stack: error.stack,
+          timestamp: new Date().toISOString(),
+          action: "Revisar logs y estado del sistema",
+        }
+      );
     } finally {
       this.isRunning = false;
     }
@@ -183,8 +246,23 @@ class ShippingNotificationApp {
   async shutdown() {
     try {
       logger.info("🔄 Shutting down app...");
+
+      // Detener monitoreo
+      this.connectionMonitor.stopMonitoring();
+
+      // Destruir WhatsApp
       await this.whatsapp.destroy();
+
+      // Cerrar base de datos
       await this.database.pool.end();
+
+      // Notificar apagado
+      await this.notifications.notifyInfo(
+        "Sistema Apagado",
+        "WhatsApp Bot se ha desconectado correctamente",
+        { timestamp: new Date().toISOString() }
+      );
+
       logger.info("✅ App shutdown completed");
     } catch (error) {
       logger.error("❌ Error during shutdown:", error);

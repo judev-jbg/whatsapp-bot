@@ -4,7 +4,8 @@ const qrcode = require("qrcode-terminal");
 const logger = require("../utils/logger");
 
 class WhatsAppService {
-  constructor() {
+  constructor(notificationService = null) {
+    this.notifications = notificationService;
     this.client = new Client({
       authStrategy: new LocalAuth({
         clientId: "whatsapp-bot",
@@ -29,6 +30,7 @@ class WhatsAppService {
     this.isReady = false;
     this.isConnecting = false;
     this.isStable = false;
+    this.connectionStartTime = null;
     this.setupEventHandlers();
     this.autoReplyService = null;
   }
@@ -37,11 +39,20 @@ class WhatsAppService {
     this.client.on("qr", (qr) => {
       console.log("Escanea este QR con WhatsApp Business:");
       qrcode.generate(qr, { small: true });
+
+      if (this.notifications) {
+        this.notifications.notifyInfo(
+          "QR Code Generado",
+          "Nuevo código QR generado. Escanea con WhatsApp Business.",
+          { timestamp: new Date().toISOString() }
+        );
+      }
     });
 
     this.client.on("ready", async () => {
       this.isReady = true;
       this.isConnecting = false;
+
       logger.info("WhatsApp Client is ready!");
 
       // Esperar estabilización adicional
@@ -57,6 +68,8 @@ class WhatsAppService {
       this.isConnecting = false;
       this.isStable = false;
       logger.error("WhatsApp disconnected:", reason);
+
+      // La notificación será manejada por ConnectionMonitor
     });
 
     this.client.on("auth_failure", (msg) => {
@@ -64,6 +77,8 @@ class WhatsAppService {
       this.isConnecting = false;
       this.isStable = false;
       logger.error("Authentication failed:", msg);
+
+      // La notificación será manejada por ConnectionMonitor
     });
 
     this.client.on("message", async (message) => {
@@ -73,7 +88,6 @@ class WhatsAppService {
     });
 
     this.client.on("message_create", async (message) => {
-      // Capturar todos los mensajes, incluyendo los propios
       logger.debug(`Message created: ${message.body.substring(0, 50)}...`);
     });
   }
@@ -110,6 +124,7 @@ class WhatsAppService {
     }
 
     this.isConnecting = true;
+    this.connectionStartTime = Date.now();
 
     try {
       await this.client.initialize();
@@ -117,6 +132,19 @@ class WhatsAppService {
     } catch (error) {
       this.isConnecting = false;
       logger.error("Failed to initialize WhatsApp:", error);
+
+      if (this.notifications) {
+        await this.notifications.notifyError(
+          "Error de Inicialización WhatsApp",
+          `Fallo al inicializar cliente de WhatsApp: ${error.message}`,
+          {
+            error: error.message,
+            stack: error.stack,
+            timestamp: new Date().toISOString(),
+          }
+        );
+      }
+
       throw error;
     }
 
