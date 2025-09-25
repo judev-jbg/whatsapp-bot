@@ -6,7 +6,9 @@ class AutoReplyService {
     this.whatsappService = whatsappService;
     this.businessHours = new BusinessHoursService();
     this.repliedNumbers = new Map(); // Para evitar responder múltiples veces
+    this.pendingReplies = new Map(); // Para almacenar timeouts pendientes
     this.replyTimeout = 3600000; // 1 hora - no responder de nuevo por 1 hora
+    this.replyDelay = 5000; // 5 segundos de espera antes de responder automáticamente
 
     // Limpiar números respondidos cada hora
     setInterval(() => this.cleanupRepliedNumbers(), 3600000);
@@ -29,6 +31,10 @@ class AutoReplyService {
         return;
       }
 
+      const phoneNumber = message.from;
+      // Cancelar respuesta automática pendiente si existe
+      this.cancelPendingReply(phoneNumber);
+
       // Verificar si es horario de atención
       const autoReplyMessage = this.businessHours.getAutoReplyMessage();
 
@@ -38,24 +44,69 @@ class AutoReplyService {
       }
 
       // Verificar si ya respondimos recientemente a este número
-      const phoneNumber = message.from;
       if (this.hasRecentlyReplied(phoneNumber)) {
         logger.info(`Already replied to ${phoneNumber} recently`);
         return;
       }
 
-      // Enviar respuesta automática
-      await this.sendAutoReply(message, autoReplyMessage);
+      // Programar respuesta automática después del delay
+      this.scheduleAutoReply(message, autoReplyMessage);
 
-      // Marcar como respondido
-      this.markAsReplied(phoneNumber);
-
-      // Marcar mensaje como no leído
-      await this.markAsUnread(message);
-
-      logger.info(`✅ Auto-reply sent to ${phoneNumber}`);
+      logger.info(
+        `⏰ Auto-reply scheduled for ${phoneNumber} in ${this.replyDelay}ms`
+      );
     } catch (error) {
       logger.error("Error handling incoming message:", error);
+    }
+  }
+
+  /**
+   * Programa una respuesta automática después del delay especificado
+   */
+  scheduleAutoReply(message, replyText) {
+    const phoneNumber = message.from;
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        // Verificar nuevamente si ya respondimos (por si acaso)
+        if (this.hasRecentlyReplied(phoneNumber)) {
+          logger.info(
+            `Already replied to ${phoneNumber} - canceling scheduled reply`
+          );
+          return;
+        }
+
+        // Enviar respuesta automática
+        await this.sendAutoReply(message, replyText);
+
+        // Marcar como respondido
+        this.markAsReplied(phoneNumber);
+
+        // Marcar mensaje como no leído
+        await this.markAsUnread(message);
+
+        logger.info(`✅ Auto-reply sent to ${phoneNumber}`);
+      } catch (error) {
+        logger.error("Error in scheduled auto-reply:", error);
+      } finally {
+        // Limpiar el timeout del Map
+        this.pendingReplies.delete(phoneNumber);
+      }
+    }, this.replyDelay);
+
+    // Almacenar el timeout para poder cancelarlo si es necesario
+    this.pendingReplies.set(phoneNumber, timeoutId);
+  }
+
+  /**
+   * Cancela una respuesta automática pendiente
+   */
+  cancelPendingReply(phoneNumber) {
+    const pendingTimeout = this.pendingReplies.get(phoneNumber);
+    if (pendingTimeout) {
+      clearTimeout(pendingTimeout);
+      this.pendingReplies.delete(phoneNumber);
+      logger.info(`⏹️ Canceled pending auto-reply for ${phoneNumber}`);
     }
   }
 
@@ -131,6 +182,7 @@ class AutoReplyService {
   getStats() {
     return {
       repliedNumbersCount: this.repliedNumbers.size,
+      pendingRepliesCount: this.pendingReplies.size,
       businessHoursStatus: this.businessHours.isBusinessHours(),
       nextBusinessDay: this.businessHours.getNextBusinessDay(),
     };

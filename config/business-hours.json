@@ -27,14 +27,17 @@
         { "date": "2025-12-03", "name": "San Francisco Javier (Navarra)" }
       ],
       "exceptionalClosures": [
-        { "date": "2025-12-24", "name": "Nochebuena (cierre excepcional)" },
-        { "date": "2025-12-31", "name": "Nochevieja (cierre excepcional)" }
+        { "date": "2025-12-24", "name": "Nochebuena" },
+        { "date": "2025-12-26", "name": "Fiesta por navidades" },
+        { "date": "2025-12-29", "name": "Fiesta por navidades" },
+        { "date": "2025-12-30", "name": "Fiesta por navidades" },
+        { "date": "2025-12-31", "name": "Nochevieja" }
       ]
     },
     "autoReplyMessages": {
       "outOfHours": "¡Hola! 👋\n\nGracias por contactar con Toolstock.\n\nActualmente estás escribiendo fuera de nuestro horario de atención al cliente.\n\n📅 *Horario de atención:*\nLunes a Viernes, de 8:00 a 16:00 h.\n\nTu mensaje ha sido recibido y será atendido en cuanto nuestro equipo vuelva a estar disponible.\n\n¡Gracias por tu comprensión!",
 
-      "holiday": "¡Hola! 👋\n\nGracias por contactar con Toolstock.\n\nHoy es *{holidayName}*, día festivo, por lo que no estamos disponibles en este momento.\n\n📅 *Horario de atención:*\nLunes a Viernes, de 8:00 a 16:00 h.\n\nResponderemos tu mensaje el próximo día laborable.\n\n¡Gracias por tu comprensión y que tengas un excelente día!",
+      "holiday": "¡Hola! 👋\n\nGracias por contactar con Toolstock.\n\nHoy no estamos disponibles.\n\n📅 *Horario de atención:*\nLunes a Viernes, de 8:00 a 16:00 h.\n\nResponderemos tu mensaje el próximo día laborable.\n\n¡Gracias por tu comprensión y que tengas un excelente día!",
 
       "weekendOrExtended": "¡Hola! 👋\n\nGracias por contactar con Toolstock.\n\n{reason}\n\n📆 Estaremos de vuelta el *{nextBusinessDay}* para atender tu mensaje.\n\n📅 *Horario de atención:*\nLunes a Viernes, de 8:00 a 16:00 h.\n\n¡Gracias por tu paciencia y que tengas un buen día!"
     }
