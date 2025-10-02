@@ -120,17 +120,15 @@ class ShippingNotificationApp {
 
           if (result.reason === "NO_WHATSAPP") {
             noWhatsAppCount++;
-          } else {
+          } else if (result.success) {
             successCount++;
+          } else {
+            failedCount++;
           }
         } catch (error) {
-          logger.error(`Error processing shipment ${shipment.id}:`, error);
-          await this.database.updateShipmentStatus(
-            shipment.id,
-            "failed",
-            error.message
-          );
+          logger.error(`Error processing shipment ${shipment.orderId}:`, error);
           failedCount++;
+          // El error ya se guardó en processIndividualShipment
         }
 
         // Rate limiting entre mensajes
@@ -191,34 +189,52 @@ class ShippingNotificationApp {
       // Generar mensaje personalizado
       const message = this.messageService.generateShippingMessage(shipment);
 
-      const ship_phone = shipPhoneNumber | buyerPhoneNumber;
+      // Usar shipPhoneNumber como prioridad, fallback a buyerPhoneNumber
+      const phoneToUse = shipPhoneNumber || buyerPhoneNumber;
+
+      if (!phoneToUse) {
+        throw new Error("No phone number available for shipment");
+      }
+
       // Enviar mensaje por WhatsApp
-      const result = await this.whatsapp.sendMessage(ship_phone, message);
+      const result = await this.whatsapp.sendMessage(phoneToUse, message);
 
       if (result.success) {
         await this.database.updateShipmentStatus(
           orderId,
           "sent",
-          null,
-          result.formattedNumber
+          null, // error = null
+          result.formattedNumber || null // formattedPhone puede ser null
         );
         logger.info(
-          `✅ Notification sent for order ${orderId} to ${ship_phone}`
+          `✅ Notification sent for order ${orderId} to ${phoneToUse}`
         );
+        return { success: true, reason: "SENT" };
       } else if (result.reason === "NO_WHATSAPP") {
         await this.database.updateShipmentStatus(
           orderId,
           "no_whatsapp",
-          result.error
+          result.error || "No WhatsApp account found", // asegurar que no sea undefined
+          result.formattedNumber || null
         );
         logger.warn(
-          `⚠️ No WhatsApp found for order ${orderId} - ${ship_phone}`
+          `⚠️ No WhatsApp found for order ${orderId} - ${phoneToUse}`
         );
+        return { success: false, reason: "NO_WHATSAPP" };
       } else {
-        throw new Error(result.error);
+        throw new Error(result.error || "Unknown error occurred");
       }
     } catch (error) {
       logger.error(`❌ Failed to process shipment ${orderId}:`, error);
+
+      // Asegurar que el error se guarde correctamente
+      await this.database.updateShipmentStatus(
+        orderId,
+        "failed",
+        error.message || "Unknown error", // asegurar que no sea undefined
+        null // formattedPhone = null
+      );
+
       throw error;
     }
   }

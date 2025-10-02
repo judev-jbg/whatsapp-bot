@@ -81,54 +81,61 @@ class DatabaseService {
         throw new Error(`Shipment with orderId ${id} not found`);
       }
 
-      // Preparar valores seguros
+      // Preparar valores seguros - convertir undefined a null
       const now = new Date();
       const sentAt = status === "sent" ? now : null;
       const sentFlag = status === "sent" ? 1 : 0;
 
-      // Actualización paso a paso para evitar errores
+      // Asegurar que error y formattedPhone sean null si están undefined
+      const safeError = error !== undefined ? error : null;
+      const safeFormattedPhone =
+        formattedPhone !== undefined ? formattedPhone : null;
+
+      // Construir query dinámicamente basado en qué campos tenemos
       const updates = [];
       const values = [];
 
-      // Status
+      // Status (siempre presente)
       updates.push("whatsapp_status = ?");
       values.push(status);
 
-      // Flag status
+      // Flag status (siempre presente)
       updates.push("whatsapp_sent = ?");
       values.push(sentFlag);
 
-      // Sent at
+      // Sent at (siempre presente, puede ser null)
       updates.push("whatsapp_sent_at = ?");
       values.push(sentAt);
 
-      // Error
+      // Error (siempre presente, puede ser null)
       updates.push("whatsapp_error = ?");
-      values.push(error);
+      values.push(safeError);
 
-      // Increment attempt count
+      // Increment attempt count (siempre presente)
       updates.push("attempt_count = attempt_count + 1");
 
-      // Formatted phone (solo si se proporciona)
-      if (formattedPhone) {
+      // Formatted phone (solo si se proporciona y no es undefined)
+      if (safeFormattedPhone !== null) {
         updates.push("ship_phone_formatted = ?");
-        values.push(formattedPhone);
+        values.push(safeFormattedPhone);
       }
 
-      // ID para WHERE
+      // ID para WHERE clause
       values.push(id);
 
       const query = `
-            UPDATE ${process.env.DB_TABLE} 
-            SET ${updates.join(", ")} 
-            WHERE orderId = ?
-        `;
+      UPDATE ${process.env.DB_TABLE} 
+      SET ${updates.join(", ")} 
+      WHERE orderId = ?
+    `;
 
       logger.info(`📝 Updating shipment ${id}:`, {
         status,
-        error: error ? error.substring(0, 100) : null,
-        formattedPhone,
+        error: safeError ? safeError.substring(0, 100) : null,
+        formattedPhone: safeFormattedPhone,
+        sentAt: sentAt ? sentAt.toISOString() : null,
         query,
+        valuesCount: values.length,
       });
 
       const [result] = await this.pool.execute(query, values);
@@ -138,12 +145,15 @@ class DatabaseService {
       } else {
         logger.warn(`⚠️ No rows affected for shipment ${id}`);
       }
+
+      return result;
     } catch (error) {
       logger.error(`❌ Error updating shipment ${id}:`, {
         message: error.message,
         code: error.code,
         sqlState: error.sqlState,
         errno: error.errno,
+        parameters: { id, status, error, formattedPhone },
       });
       throw error;
     }
