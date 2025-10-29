@@ -146,7 +146,7 @@ class ShippingNotificationApp {
 
       // Notificar resumen del proceso
       await this.notifications.notifyInfo(
-        "Proceso de Envíos Completado",
+        "Notificaciones de Envío Completadas 📱",
         `Procesamiento diario completado en ${duration.toFixed(1)} segundos`,
         {
           totalProcessed: shipments.length,

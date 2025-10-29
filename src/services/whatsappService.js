@@ -86,10 +86,6 @@ class WhatsAppService {
         await this.autoReplyService.handleIncomingMessage(message);
       }
     });
-
-    this.client.on("message_create", async (message) => {
-      logger.debug(`Message created: ${message.body.substring(0, 50)}...`);
-    });
   }
 
   async waitForStability() {
@@ -218,8 +214,11 @@ class WhatsAppService {
 
   formatSpanishNumber(phone) {
     try {
-      logger.info(`Numbe a formatear ${phone}.`);
-      let cleaned = phone.toString().replace(/[\s\-\(\)\.]/g, "");
+      logger.info(`Number a formatear ${phone}.`);
+      let cleaned = phone
+        .toString()
+        .replace(".0", "")
+        .replace(/[\s\-\(\)\.]/g, "");
 
       if (cleaned.startsWith("+346")) {
         cleaned = cleaned.substring(1);
@@ -242,7 +241,7 @@ class WhatsAppService {
       logger.info(`Formatted number ${phone}. Nuevo numero ${cleaned}`);
       return cleaned;
     } catch (error) {
-      logger.error(`Error formatting phone ${phone}:`, error.message);
+      logger.error(`Error formatting phone ${phone}:`, error);
       throw error;
     }
   }

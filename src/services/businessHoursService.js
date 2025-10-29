@@ -184,19 +184,21 @@ class BusinessHoursService {
       return null; // No enviar respuesta durante horario de atención
     }
 
-    // Si es festivo
-    if (status.reason === "holiday") {
-      return messages.holiday.replace("{holidayName}", status.holidayName);
-    }
-
     // Si es fin de semana o víspera de varios días sin atención
     const nextBusinessDay = this.getNextBusinessDay(date);
 
-    if (status.reason === "weekend" || nextBusinessDay.daysUntil > 1) {
+    // Si es festivo
+    if (status.reason === "holiday" || nextBusinessDay.daysUntil > 1) {
+      return messages.holiday
+        .replace("{holidayName}", status.holidayName)
+        .replace("{nextBusinessDay}", nextBusinessDay.dateStr);
+    }
+
+    if (status.reason === "weekend" || nextBusinessDay.daysUntil > 2) {
       let reason =
         status.reason === "weekend"
-          ? "Es fin de semana"
-          : "Estamos fuera del horario de atención";
+          ? "Estamos fuera del horario de atención 😕"
+          : "Estamos fuera del horario de atención 😕";
 
       return messages.weekendOrExtended
         .replace("{reason}", reason)

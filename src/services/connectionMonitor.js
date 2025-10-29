@@ -50,7 +50,7 @@ class ConnectionMonitor {
       this.logConnectionEvent("disconnected", { reason });
 
       await this.notifications.notifyDisconnection(
-        "WhatsApp Desconectado",
+        "Servicio WhatsApp Desconectado",
         `Conexión perdida con WhatsApp: ${reason}`,
         {
           reason,
@@ -89,7 +89,7 @@ class ConnectionMonitor {
 
       if (this.reconnectionAttempts > 0) {
         await this.notifications.notifySuccess(
-          "WhatsApp Reconectado",
+          "Servicio WhatsApp Reconectado",
           "Conexión con WhatsApp restablecida exitosamente",
           {
             reconnectionAttempts: this.reconnectionAttempts,
@@ -111,7 +111,7 @@ class ConnectionMonitor {
 
       if (!this.isReconnecting) {
         await this.notifications.notifyWarning(
-          "WhatsApp Estado Inestable",
+          "Servicio WhatsApp Estado Inestable",
           "WhatsApp no está en estado ready/stable. Verificando conexión...",
           {
             isReady: this.whatsapp.isReady,

@@ -92,9 +92,7 @@ class NotificationService {
     if (!this.emailTransporter) return;
 
     try {
-      const subject = `${this.getTypeEmoji(
-        type
-      )} [${type.toUpperCase()}] ${title}`;
+      const subject = `[${type.toUpperCase()}] WhatsApp Bot`;
       const htmlContent = this.generateEmailHTML(type, title, message, details);
 
       const mailOptions = {
@@ -168,8 +166,7 @@ class NotificationService {
   }
 
   generateEmailHTML(type, title, message, details) {
-    const color =
-      type === "error" ? "#dc3545" : type === "warning" ? "#ffc107" : "#28a745";
+    const color = this.getHeaderColor(type);
 
     return `
     <!DOCTYPE html>
@@ -223,7 +220,7 @@ class NotificationService {
       case "info":
         return "ℹ️";
       case "success":
-        return "✅";
+        return "✔️";
       case "reconnection":
         return "🔄";
       case "disconnection":
@@ -241,6 +238,21 @@ class NotificationService {
         return "warning";
       case "success":
         return "good";
+      case "info":
+        return "#17a2b8";
+      default:
+        return "#6c757d";
+    }
+  }
+
+  getHeaderColor(type) {
+    switch (type) {
+      case "error":
+        return "#dc3545";
+      case "warning":
+        return "#ffc107";
+      case "success":
+        return "#28a745";
       case "info":
         return "#17a2b8";
       default:

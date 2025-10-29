@@ -31,6 +31,18 @@ class AutoReplyService {
         return;
       }
 
+      // Ignorar broadcast messages
+      if (message.from.includes("@broadcast")) {
+        logger.info("Ignoring broadcast message");
+        return;
+      }
+
+      // Ignorar status updates
+      if (message.isStatus) {
+        logger.info("Ignoring status update");
+        return;
+      }
+
       const phoneNumber = message.from;
       // Cancelar respuesta automática pendiente si existe
       this.cancelPendingReply(phoneNumber);
