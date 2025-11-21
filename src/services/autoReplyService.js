@@ -8,7 +8,7 @@ class AutoReplyService {
     this.repliedNumbers = new Map(); // Para evitar responder múltiples veces
     this.pendingReplies = new Map(); // Para almacenar timeouts pendientes
     this.replyTimeout = 3600000; // 1 hora - no responder de nuevo por 1 hora
-    this.replyDelay = 5000; // 5 segundos de espera antes de responder automáticamente
+    this.replyDelay = 10000; // 10 segundos de espera antes de responder automáticamente
 
     // Limpiar números respondidos cada hora
     setInterval(() => this.cleanupRepliedNumbers(), 3600000);
@@ -25,9 +25,15 @@ class AutoReplyService {
         return;
       }
 
-      // Ignorar mensajes propios
+      // Ignorar mensajes propios (doble verificación)
       if (message.fromMe) {
-        logger.info("Ignoring own message");
+        logger.debug("AutoReply: Ignoring own message (fromMe=true)");
+        return;
+      }
+
+      // Verificación adicional: ignorar si el mensaje no tiene 'from' válido o es del bot
+      if (!message.from || message.from === message.to) {
+        logger.debug("AutoReply: Ignoring message without valid sender");
         return;
       }
 

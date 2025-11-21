@@ -81,7 +81,13 @@ class WhatsAppService {
       // La notificación será manejada por ConnectionMonitor
     });
 
-    this.client.on("message", async (message) => {
+    this.client.on("message_create", async (message) => {
+      // Filtrar mensajes propios (enviados por el bot)
+      if (message.fromMe) {
+        logger.debug(`Ignoring outgoing message to ${message.to}`);
+        return;
+      }
+
       if (this.autoReplyService) {
         await this.autoReplyService.handleIncomingMessage(message);
       }
@@ -265,23 +271,22 @@ class WhatsAppService {
             ),
           ]);
 
-          logger.info("🔍 getNumberId returned:", {
-            type: typeof numberId,
-            value: numberId,
-            serialized: numberId?._serialized,
-            user: numberId?.user,
-            server: numberId?.server,
-          });
-
           if (numberId) {
-            logger.info(`✅ WhatsApp verified for ${phoneNumber}`);
+            logger.info(`✅ WhatsApp verified for ${formattedNumber}`);
+            logger.info("🔍 getNumberId returned:", {
+              type: typeof numberId,
+              value: numberId,
+              serialized: numberId?._serialized,
+              user: numberId?.user,
+              server: numberId?.server,
+            });
             return {
               valid: true,
               formattedNumber,
               chatId: numberId._serialized,
             };
           } else {
-            logger.warn(`❌ No WhatsApp found for ${phoneNumber}`);
+            logger.warn(`❌ No WhatsApp found for ${formattedNumber}`);
             return {
               valid: false,
               formattedNumber,
@@ -307,7 +312,7 @@ class WhatsAppService {
         }
       }
     } catch (error) {
-      logger.error(`Error validating WhatsApp for ${phoneNumber}:`, error);
+      logger.error(`Error validating WhatsApp for ${formattedNumber}:`, error);
 
       return {
         valid: false,

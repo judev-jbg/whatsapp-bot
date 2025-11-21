@@ -129,15 +129,6 @@ class DatabaseService {
       WHERE orderId = ?
     `;
 
-      logger.info(`📝 Updating shipment ${id}:`, {
-        status,
-        error: safeError ? safeError.substring(0, 100) : null,
-        formattedPhone: safeFormattedPhone,
-        sentAt: sentAt ? sentAt.toISOString() : null,
-        query,
-        valuesCount: values.length,
-      });
-
       const [result] = await this.pool.execute(query, values);
 
       if (result.affectedRows > 0) {

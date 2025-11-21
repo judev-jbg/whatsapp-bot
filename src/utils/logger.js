@@ -141,7 +141,7 @@ const logger = {
     });
   },
 
-  warning: function (message, ...args) {
+  warn: function (message, ...args) {
     const caller = getCallerInfo();
     baseLogger.warn(message, {
       caller: `${caller.filename}:${caller.funcName}:${caller.lineNumber}`,
