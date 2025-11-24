@@ -33,6 +33,10 @@ class WhatsAppService {
     this.connectionStartTime = null;
     this.setupEventHandlers();
     this.autoReplyService = null;
+
+    // Rastrear mensajes enviados por el bot para evitar respuestas automáticas
+    this.recentlySentMessages = new Map(); // chatId -> timestamp
+    this.sentMessageTimeout = 30000; // 30 segundos
   }
 
   setupEventHandlers() {
@@ -86,6 +90,21 @@ class WhatsAppService {
       if (message.fromMe) {
         logger.debug(`Ignoring outgoing message to ${message.to}`);
         return;
+      }
+
+      // Verificar si acabamos de enviar un mensaje a este chat
+      const chatId = message.from;
+      const lastSentTime = this.recentlySentMessages.get(chatId);
+
+      if (lastSentTime) {
+        const timeSinceSent = Date.now() - lastSentTime;
+        if (timeSinceSent < this.sentMessageTimeout) {
+          logger.info(`🚫 Ignoring message from ${chatId} - bot sent message ${timeSinceSent}ms ago`);
+          return;
+        } else {
+          // Limpiar entrada antigua
+          this.recentlySentMessages.delete(chatId);
+        }
       }
 
       if (this.autoReplyService) {
@@ -387,6 +406,11 @@ class WhatsAppService {
 
           if (isOurMessage) {
             logger.info("✅ Message successfully verified in chat");
+
+            // Marcar este chat como que acabamos de enviar un mensaje
+            this.recentlySentMessages.set(validation.chatId, Date.now());
+            logger.debug(`📝 Marked chat ${validation.chatId} as recently sent`);
+
             return {
               success: true,
               formattedNumber: validation.formattedNumber,
@@ -400,6 +424,11 @@ class WhatsAppService {
               logger.info(
                 "✅ Assuming success (undefined response but no error)"
               );
+
+              // Marcar este chat como que acabamos de enviar un mensaje
+              this.recentlySentMessages.set(validation.chatId, Date.now());
+              logger.debug(`📝 Marked chat ${validation.chatId} as recently sent`);
+
               return {
                 success: true,
                 formattedNumber: validation.formattedNumber,
@@ -415,6 +444,11 @@ class WhatsAppService {
             logger.info(
               "✅ Assuming success (could not verify chat but no send error)"
             );
+
+            // Marcar este chat como que acabamos de enviar un mensaje
+            this.recentlySentMessages.set(validation.chatId, Date.now());
+            logger.debug(`📝 Marked chat ${validation.chatId} as recently sent`);
+
             return {
               success: true,
               formattedNumber: validation.formattedNumber,
@@ -427,6 +461,11 @@ class WhatsAppService {
         // Si llegamos aquí y sentMessage no es undefined, usarlo normalmente
         if (sentMessage && sentMessage !== undefined) {
           logger.info(`✅ Message sent with proper response`);
+
+          // Marcar este chat como que acabamos de enviar un mensaje
+          this.recentlySentMessages.set(validation.chatId, Date.now());
+          logger.debug(`📝 Marked chat ${validation.chatId} as recently sent`);
+
           return {
             success: true,
             formattedNumber: validation.formattedNumber,
