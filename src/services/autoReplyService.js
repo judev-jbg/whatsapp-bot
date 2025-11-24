@@ -138,6 +138,13 @@ class AutoReplyService {
       // Pequeña demora para parecer más natural
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
+      // Marcar el chat como que vamos a enviar un mensaje
+      // para evitar que el evento message_create dispare otra respuesta
+      this.whatsappService.recentlySentMessages.set(
+        originalMessage.from,
+        Date.now()
+      );
+
       // Enviar mensaje
       await chat.sendMessage(replyText);
 
