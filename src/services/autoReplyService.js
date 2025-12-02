@@ -8,7 +8,7 @@ class AutoReplyService {
     this.repliedNumbers = new Map(); // Para evitar responder múltiples veces
     this.pendingReplies = new Map(); // Para almacenar timeouts pendientes
     this.replyTimeout = 3600000; // 1 hora - no responder de nuevo por 1 hora
-    this.replyDelay = 10000; // 10 segundos de espera antes de responder automáticamente
+    this.replyDelay = 30000; // 30 segundos de espera antes de responder automáticamente
 
     // Limpiar números respondidos cada hora
     setInterval(() => this.cleanupRepliedNumbers(), 3600000);
