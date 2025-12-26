@@ -26,14 +26,18 @@
         { "date": "2025-12-25", "name": "Navidad" },
         { "date": "2025-12-03", "name": "San Francisco Javier (Navarra)" }
       ],
-      "exceptionalClosures": [
-        { "date": "2025-12-24", "name": "Nochebuena" },
-        { "date": "2025-12-26", "name": "Fiesta por navidades" },
-        { "date": "2025-12-29", "name": "Fiesta por navidades" },
-        { "date": "2025-12-30", "name": "Fiesta por navidades" },
-        { "date": "2025-12-31", "name": "Nochevieja" }
+      "2026": [
+        { "date": "2026-01-01", "name": "Año Nuevo" },
+        { "date": "2026-01-06", "name": "Reyes Magos" }
       ]
     },
+    "exceptionalClosures": [
+      { "date": "2025-12-24", "name": "Nochebuena" },
+      { "date": "2025-12-26", "name": "Fiesta por navidades" },
+      { "date": "2025-12-29", "name": "Fiesta por navidades" },
+      { "date": "2025-12-30", "name": "Fiesta por navidades" },
+      { "date": "2025-12-31", "name": "Nochevieja" }
+    ],
     "autoReplyMessages": {
       "outOfHours": "¡Hola! 👋\n\nGracias por contactar con Toolstock.\n\nActualmente estás escribiendo fuera de nuestro horario de atención al cliente.\n\n📅 *Horario de atención:*\nLunes a Viernes, de 8:00 a 16:00 h.\n\nTu mensaje ha sido recibido y será atendido en cuanto nuestro equipo vuelva a estar disponible.\n\n¡Gracias por tu comprensión!",
 
