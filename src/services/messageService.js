@@ -57,6 +57,8 @@ ${trackingUrl}&cpDst=${shipPostalCodeFormated}
 
 *Equipo Toolstock*
 https://www.toolstock.info/
+
+\`Este es un mensaje automatico.\`
 `;
 
       logger.info(`Message generated for order ${orderId}`);
