@@ -36,7 +36,7 @@ class WhatsAppService {
 
     // Rastrear mensajes enviados por el bot para evitar respuestas automáticas
     this.recentlySentMessages = new Map(); // chatId -> timestamp
-    this.sentMessageTimeout = 30000; // 30 segundos
+    this.sentMessageTimeout = 60000; // 60 segundos (debe ser mayor que replyDelay)
   }
 
   setupEventHandlers() {
