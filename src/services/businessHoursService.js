@@ -146,14 +146,28 @@ class BusinessHoursService {
     nextDay.setDate(nextDay.getDate() + 1);
 
     while (daysChecked < maxDays) {
-      const dayCheck = this.isBusinessHours(nextDay);
+      // Primero verificar que NO sea festivo o cierre excepcional
+      if (this.isHoliday(nextDay)) {
+        nextDay.setDate(nextDay.getDate() + 1);
+        daysChecked++;
+        continue;
+      }
 
-      if (
-        dayCheck.isOpen ||
-        dayCheck.reason === "beforeHours" ||
-        dayCheck.reason === "afterHours"
-      ) {
-        // Es un día laborable
+      // Obtener día de la semana
+      const dayNames = [
+        "sunday",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+      ];
+      const dayName = dayNames[nextDay.getDay()];
+      const dayConfig = this.config.businessHours.regularHours[dayName];
+
+      // Si hay horario configurado para este día (no es fin de semana), es un día laborable
+      if (dayConfig) {
         return {
           date: nextDay,
           dateStr: this.formatDateLong(nextDay),
