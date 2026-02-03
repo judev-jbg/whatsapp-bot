@@ -39,3 +39,7 @@ config/business-hours.json.backup
 logs/
 .wwebjs_auth/
 .wwebjs_cache/
+
+test*.js
+*old.js
+.baileys_auth
