@@ -29,7 +29,7 @@ class MessageService {
         shipAddress3,
         shipCity,
         shipPostalCode,
-        shipState
+        shipState,
       );
 
       // Generar URL de seguimiento
@@ -37,7 +37,7 @@ class MessageService {
 
       const shipPostalCodeFormated = this.formatPostalCode(
         shipCountry,
-        shipPostalCode
+        shipPostalCode,
       );
 
       const message = `¡Hola ${customerName}! 👋
@@ -58,8 +58,7 @@ ${trackingUrl}&cpDst=${shipPostalCodeFormated}
 *Equipo Toolstock*
 https://www.toolstock.info/
 
-\`Este es un mensaje automatico.\`
-`;
+\`Este es un mensaje automatico.\``;
 
       logger.info(`Message generated for order ${orderId}`);
       return message;
@@ -75,7 +74,7 @@ https://www.toolstock.info/
     shipAddress3,
     shipCity,
     shipPostalCode,
-    shipState
+    shipState,
   ) {
     // Parte 1: Concatenar las direcciones (eliminando espacios extra)
     const addressParts = [shipAddress1, shipAddress2, shipAddress3]

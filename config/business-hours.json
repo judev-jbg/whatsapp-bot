@@ -27,7 +27,15 @@
       ],
       "2026": [
         { "date": "2026-01-01", "name": "Año Nuevo" },
-        { "date": "2026-01-06", "name": "Reyes Magos" }
+        { "date": "2026-01-06", "name": "Reyes Magos" },
+        { "date": "2026-01-03", "name": "Viernes Santo" },
+        { "date": "2026-05-01", "name": "Día del Trabajador" },
+        { "date": "2026-08-15", "name": "Asunción de la Virgen" },
+        { "date": "2026-10-12", "name": "Fiesta Nacional de España" },
+        { "date": "2026-11-01", "name": "Todos los Santos" },
+        { "date": "2026-12-06", "name": "Día de la Constitución" },
+        { "date": "2026-12-08", "name": "Inmaculada Concepción" },
+        { "date": "2026-12-25", "name": "Navidad" }
       ]
     },
     "exceptionalClosures": [

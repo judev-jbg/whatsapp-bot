@@ -258,11 +258,14 @@ class ConnectionMonitor {
           "--no-sandbox",
           "--disable-setuid-sandbox",
           "--disable-dev-shm-usage",
-          "--disable-accelerated-2d-canvas",
-          "--no-first-run",
-          "--no-zygote",
           "--disable-gpu",
+          "--disable-software-rasterizer",
+          "--no-first-run",
         ],
+      },
+      // Fix: Deshabilitar webCache para evitar errores
+      webVersionCache: {
+        type: "none",
       },
     });
 
