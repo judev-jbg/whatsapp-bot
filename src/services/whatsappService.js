@@ -1,135 +1,34 @@
-const { Client, LocalAuth } = require("whatsapp-web.js");
-const AutoReplyService = require("./autoReplyService");
+const makeWASocket = require("@whiskeysockets/baileys").default;
+const {
+  DisconnectReason,
+  useMultiFileAuthState,
+  fetchLatestBaileysVersion,
+} = require("@whiskeysockets/baileys");
 const qrcode = require("qrcode-terminal");
 const logger = require("../utils/logger");
+const AutoReplyService = require("./autoReplyService");
+const path = require("path");
 
 class WhatsAppService {
   constructor(notificationService = null) {
     this.notifications = notificationService;
-    this.client = new Client({
-      authStrategy: new LocalAuth({
-        clientId: "whatsapp-bot",
-      }),
-      puppeteer: {
-        headless: true,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-accelerated-2d-canvas",
-          "--no-first-run",
-          "--no-zygote",
-          "--disable-gpu",
-          "--disable-background-timer-throttling",
-          "--disable-backgrounding-occluded-windows",
-          "--disable-renderer-backgrounding",
-        ],
-      },
-    });
-
+    this.sock = null;
     this.isReady = false;
     this.isConnecting = false;
     this.isStable = false;
     this.connectionStartTime = null;
-    this.setupEventHandlers();
     this.autoReplyService = null;
 
-    // Rastrear mensajes enviados por el bot para evitar respuestas automáticas
-    this.recentlySentMessages = new Map(); // chatId -> timestamp
-    this.sentMessageTimeout = 60000; // 60 segundos (debe ser mayor que replyDelay)
-  }
+    // Rastrear mensajes enviados por el bot
+    this.recentlySentMessages = new Map();
+    this.sentMessageTimeout = 60000;
 
-  setupEventHandlers() {
-    this.client.on("qr", (qr) => {
-      console.log("Escanea este QR con WhatsApp Business:");
-      qrcode.generate(qr, { small: true });
+    // Auth state path
+    this.authPath = path.join(process.cwd(), ".baileys_auth");
 
-      if (this.notifications) {
-        this.notifications.notifyInfo(
-          "QR Code Generado",
-          "Nuevo código QR generado. Escanea con WhatsApp Business.",
-          { timestamp: new Date().toISOString() }
-        );
-      }
-    });
-
-    this.client.on("ready", async () => {
-      this.isReady = true;
-      this.isConnecting = false;
-
-      logger.info("WhatsApp Client is ready!");
-
-      // Esperar estabilización adicional
-      await this.waitForStability();
-    });
-
-    this.client.on("authenticated", () => {
-      logger.info("WhatsApp authenticated successfully");
-    });
-
-    this.client.on("disconnected", (reason) => {
-      this.isReady = false;
-      this.isConnecting = false;
-      this.isStable = false;
-      logger.error("WhatsApp disconnected:", reason);
-
-      // La notificación será manejada por ConnectionMonitor
-    });
-
-    this.client.on("auth_failure", (msg) => {
-      this.isReady = false;
-      this.isConnecting = false;
-      this.isStable = false;
-      logger.error("Authentication failed:", msg);
-
-      // La notificación será manejada por ConnectionMonitor
-    });
-
-    this.client.on("message_create", async (message) => {
-      // Filtrar mensajes propios (enviados por el bot)
-      if (message.fromMe) {
-        logger.debug(`Ignoring outgoing message to ${message.to}`);
-        return;
-      }
-
-      // Verificar si acabamos de enviar un mensaje a este chat
-      const chatId = message.from;
-      const lastSentTime = this.recentlySentMessages.get(chatId);
-
-      if (lastSentTime) {
-        const timeSinceSent = Date.now() - lastSentTime;
-        if (timeSinceSent < this.sentMessageTimeout) {
-          logger.info(`🚫 Ignoring message from ${chatId} - bot sent message ${timeSinceSent}ms ago`);
-          return;
-        } else {
-          // Limpiar entrada antigua
-          this.recentlySentMessages.delete(chatId);
-        }
-      }
-
-      if (this.autoReplyService) {
-        await this.autoReplyService.handleIncomingMessage(message);
-      }
-    });
-  }
-
-  async waitForStability() {
-    logger.info("⏳ Waiting for WhatsApp stability...");
-
-    // Esperar 5 segundos adicionales para estabilización
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-
-    // Verificar que el contexto esté disponible
-    try {
-      await this.client.getState();
-      await this.client.info;
-      this.isStable = true;
-      logger.info("✅ WhatsApp is now stable and ready");
-    } catch (error) {
-      logger.warn("⚠️ WhatsApp not fully stable yet, waiting more...");
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      this.isStable = true; // Asumir estable después del tiempo adicional
-    }
+    // Reconnection control
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
   }
 
   async initialize() {
@@ -148,8 +47,36 @@ class WhatsAppService {
     this.connectionStartTime = Date.now();
 
     try {
-      await this.client.initialize();
+      console.log("🚀 Initializing Baileys WhatsApp client...");
+
+      // Load auth state
+      const { state, saveCreds } = await useMultiFileAuthState(this.authPath);
+
+      // Get latest Baileys version
+      const { version } = await fetchLatestBaileysVersion();
+      console.log(`📱 Using WhatsApp version: ${version.join(".")}`);
+
+      // Create socket
+      this.sock = makeWASocket({
+        version,
+        auth: state,
+        printQRInTerminal: false, // We'll handle QR manually
+        logger: require("pino")({ level: "silent" }), // Suppress Baileys logs
+      });
+
+      // Setup event handlers
+      this.setupEventHandlers(saveCreds);
+
+      // Wait for ready
       await this.waitForReady();
+
+      if (this.isReady && this.isStable) {
+        // Initialize auto-reply service
+        if (!this.autoReplyService) {
+          this.autoReplyService = new AutoReplyService(this);
+          logger.info("✅ Auto-reply service initialized");
+        }
+      }
     } catch (error) {
       this.isConnecting = false;
       logger.error("Failed to initialize WhatsApp:", error);
@@ -168,18 +95,163 @@ class WhatsAppService {
 
       throw error;
     }
+  }
 
-    if (this.isReady && this.isStable) {
-      // Inicializar servicio de respuestas automáticas
-      if (!this.autoReplyService) {
-        this.autoReplyService = new AutoReplyService(this);
-        logger.info("✅ Auto-reply service initialized");
+  setupEventHandlers(saveCreds) {
+    console.log("🔧 Setting up Baileys event handlers...");
+
+    this.sock.ev.on("connection.update", async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+
+      // Handle QR code
+      if (qr) {
+        console.log("📱 QR Code generado:");
+        qrcode.generate(qr, { small: true });
+
+        if (this.notifications) {
+          this.notifications.notifyInfo(
+            "QR Code Generado",
+            "Nuevo código QR generado. Escanea con WhatsApp Business.",
+            { timestamp: new Date().toISOString() }
+          );
+        }
       }
+
+      // Handle connection state changes
+      if (connection === "close") {
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+        console.log(
+          `🔴 Connection closed. Status: ${statusCode}, Reconnect: ${shouldReconnect}`
+        );
+        logger.error("Connection closed:", lastDisconnect?.error);
+
+        this.isReady = false;
+        this.isStable = false;
+        this.isConnecting = false;
+
+        // Handle specific error codes
+        if (statusCode === DisconnectReason.loggedOut) {
+          console.log("❌ Logged out - need to scan QR again");
+          logger.error("Logged out - authentication required");
+        } else if (statusCode === 515) {
+          console.log("⚠️ Stream error 515 - waiting 10s before reconnect");
+          logger.warn("Stream error 515 detected - delayed reconnect");
+          this.reconnectAttempts++;
+
+          if (this.reconnectAttempts <= this.maxReconnectAttempts) {
+            setTimeout(() => this.initialize(), 10000);
+          } else {
+            console.log("❌ Max reconnection attempts reached. Please restart manually.");
+            logger.error("Max reconnection attempts reached");
+          }
+          return;
+        } else if (shouldReconnect) {
+          // Reconnect automatically with delay
+          this.reconnectAttempts++;
+
+          if (this.reconnectAttempts <= this.maxReconnectAttempts) {
+            console.log(`🔄 Reconnecting in 5s... (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+            setTimeout(() => this.initialize(), 5000);
+          } else {
+            console.log("❌ Max reconnection attempts reached. Please restart manually.");
+            logger.error("Max reconnection attempts reached");
+          }
+        }
+      } else if (connection === "open") {
+        console.log("✅ WhatsApp connected and ready!");
+        logger.info("WhatsApp connected and ready!");
+        this.isReady = true;
+        this.isConnecting = false;
+        this.isStable = true;
+        this.reconnectAttempts = 0; // Reset counter on successful connection
+      }
+    });
+
+    // Save credentials whenever they update
+    this.sock.ev.on("creds.update", saveCreds);
+
+    // Handle incoming messages
+    this.sock.ev.on("messages.upsert", async ({ messages, type }) => {
+      if (type !== "notify") return;
+
+      for (const message of messages) {
+        // Ignore if no message or if it's from us
+        if (!message.message || message.key.fromMe) continue;
+
+        // Get real sender number
+        const senderNumber = message.key.senderPn || message.key.remoteJid;
+        console.log(
+          `📨 Received message from ${senderNumber}: ${this.getMessageBody(message)?.substring(0, 50)}`
+        );
+
+        // Check if we recently sent a message to this chat
+        const chatId = message.key.remoteJid;
+        const lastSentTime = this.recentlySentMessages.get(chatId);
+
+        if (lastSentTime) {
+          const timeSinceSent = Date.now() - lastSentTime;
+          if (timeSinceSent < this.sentMessageTimeout) {
+            logger.info(
+              `🚫 Ignoring message from ${chatId} - bot sent message ${timeSinceSent}ms ago`
+            );
+            continue;
+          } else {
+            this.recentlySentMessages.delete(chatId);
+          }
+        }
+
+        // Convert Baileys message to whatsapp-web.js compatible format
+        const adaptedMessage = this.adaptMessage(message);
+
+        if (this.autoReplyService) {
+          await this.autoReplyService.handleIncomingMessage(adaptedMessage);
+        }
+      }
+    });
+  }
+
+  // Adapt Baileys message format to whatsapp-web.js format for compatibility
+  adaptMessage(baileysMessage) {
+    const body = this.getMessageBody(baileysMessage);
+
+    // Extract real phone number from JID
+    // remoteJid can be: "34XXXXXXXXX@s.whatsapp.net" or "820372336865@lid"
+    // For @lid, the real number is in senderPn
+    let from = baileysMessage.key.remoteJid;
+
+    // If it's a LID (Local ID), use senderPn for the real phone number
+    if (from.endsWith('@lid') && baileysMessage.key.senderPn) {
+      from = baileysMessage.key.senderPn;
+    } else if (from.endsWith('@lid') && baileysMessage.key.participant) {
+      // For group messages, use participant
+      from = baileysMessage.key.participant;
     }
+
+    return {
+      from: from,
+      to: baileysMessage.key.remoteJid,
+      body: body,
+      fromMe: baileysMessage.key.fromMe,
+      timestamp: baileysMessage.messageTimestamp,
+      pushName: baileysMessage.pushName || '',
+      _raw: baileysMessage,
+    };
+  }
+
+  // Extract message body from Baileys message
+  getMessageBody(message) {
+    return (
+      message.message?.conversation ||
+      message.message?.extendedTextMessage?.text ||
+      message.message?.imageMessage?.caption ||
+      message.message?.videoMessage?.caption ||
+      ""
+    );
   }
 
   async waitForReady(maxWaitMs = 90000) {
-    // Aumentado a 90 segundos
     const startTime = Date.now();
 
     while (
@@ -190,9 +262,9 @@ class WhatsAppService {
     }
 
     if (!this.isReady || !this.isStable) {
-      throw new Error(
-        "WhatsApp failed to become ready and stable within timeout"
-      );
+      const error = `WhatsApp failed to become ready within ${maxWaitMs}ms. isReady=${this.isReady}, isStable=${this.isStable}`;
+      console.error(`❌ ${error}`);
+      throw new Error(error);
     }
   }
 
@@ -200,40 +272,6 @@ class WhatsAppService {
     if (!this.isReady || !this.isStable) {
       logger.warn("WhatsApp not ready/stable, attempting to reconnect...");
       await this.initialize();
-    }
-
-    // Triple verificación de estabilidad
-    let attempts = 0;
-    const maxAttempts = 3;
-
-    while (attempts < maxAttempts) {
-      try {
-        const state = await this.client.getState();
-        const info = await this.client.info;
-
-        if (state === "CONNECTED" && info) {
-          logger.debug(`✅ WhatsApp stable - State: ${state}`);
-          return;
-        }
-
-        logger.warn(
-          `⚠️ WhatsApp unstable - State: ${state}, attempt ${attempts + 1}`
-        );
-        attempts++;
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      } catch (error) {
-        logger.error(
-          `Connection check failed, attempt ${attempts + 1}:`,
-          error.message
-        );
-        attempts++;
-
-        if (attempts >= maxAttempts) {
-          throw new Error("WhatsApp connection critically unstable");
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-      }
     }
   }
 
@@ -276,33 +314,22 @@ class WhatsAppService {
       await this.ensureStableConnection();
 
       const formattedNumber = this.formatSpanishNumber(phoneNumber);
+      const jid = formattedNumber + "@s.whatsapp.net";
 
-      // Validación con reintentos
+      // Check if number exists on WhatsApp
       let attempts = 0;
       const maxAttempts = 3;
 
       while (attempts < maxAttempts) {
         try {
-          const numberId = await Promise.race([
-            this.client.getNumberId(formattedNumber),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error("Validation timeout")), 15000)
-            ),
-          ]);
+          const [result] = await this.sock.onWhatsApp(jid);
 
-          if (numberId) {
+          if (result && result.exists) {
             logger.info(`✅ WhatsApp verified for ${formattedNumber}`);
-            logger.info("🔍 getNumberId returned:", {
-              type: typeof numberId,
-              value: numberId,
-              serialized: numberId?._serialized,
-              user: numberId?.user,
-              server: numberId?.server,
-            });
             return {
               valid: true,
               formattedNumber,
-              chatId: numberId._serialized,
+              chatId: jid,
             };
           } else {
             logger.warn(`❌ No WhatsApp found for ${formattedNumber}`);
@@ -323,15 +350,12 @@ class WhatsAppService {
             throw error;
           }
 
-          // Esperar antes del reintento
           await new Promise((resolve) => setTimeout(resolve, 2000));
-
-          // Re-verificar conexión
           await this.ensureStableConnection();
         }
       }
     } catch (error) {
-      logger.error(`Error validating WhatsApp for ${formattedNumber}:`, error);
+      logger.error(`Error validating WhatsApp for ${phoneNumber}:`, error);
 
       return {
         valid: false,
@@ -357,129 +381,38 @@ class WhatsAppService {
         };
       }
 
-      logger.info("📱 Sending message with stability checks...");
+      logger.info("📱 Sending message with Baileys...");
       logger.info(`🎯 ChatId to use: ${validation.chatId}`);
 
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      // ✅ MARCAR CHAT ANTES DE ENVIAR - Para prevenir eventos message_create
+      // Mark chat before sending
       this.recentlySentMessages.set(validation.chatId, Date.now());
       logger.debug(`📝 Pre-marked chat ${validation.chatId} before sending`);
 
-      // ✅ SOLO UN INTENTO - No bucle de reintentos
       try {
-        logger.info(`📤 Calling this.client.sendMessage...`);
+        logger.info(`📤 Sending message...`);
 
-        // Obtener timestamp antes del envío
-        const beforeTimestamp = Date.now();
-
-        const sentMessage = await Promise.race([
-          this.client.sendMessage(validation.chatId, message),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Send timeout")), 20000)
-          ),
-        ]);
-
-        logger.info("🔍 sendMessage returned:", {
-          type: typeof sentMessage,
-          isUndefined: sentMessage === undefined,
-          isNull: sentMessage === null,
+        const sentMessage = await this.sock.sendMessage(validation.chatId, {
+          text: message,
         });
 
-        // ✅ VERIFICACIÓN INTELIGENTE - Comprobar si el mensaje realmente llegó
-        await new Promise((resolve) => setTimeout(resolve, 1000)); // Esperar 1s para sincronización
+        logger.info("✅ Message sent successfully!");
+        logger.info("🔍 sendMessage returned:", {
+          key: sentMessage.key,
+          status: sentMessage.status,
+        });
 
-        try {
-          const chat = await this.client.getChatById(validation.chatId);
-          const lastMessage = chat.lastMessage;
+        // Mark chat after successful send
+        this.recentlySentMessages.set(validation.chatId, Date.now());
+        logger.debug(`📝 Marked chat ${validation.chatId} as recently sent`);
 
-          logger.info("💬 Chat verification:", {
-            lastMessageBody: lastMessage?.body?.substring(0, 100),
-            lastMessageTimestamp: lastMessage?.timestamp,
-            beforeTimestamp: Math.floor(beforeTimestamp / 1000),
-          });
-
-          // ✅ VERIFICAR SI EL ÚLTIMO MENSAJE ES NUESTRO MENSAJE
-          const isOurMessage =
-            lastMessage &&
-            lastMessage.body &&
-            lastMessage.body.includes(
-              message.split("\n")[0].substring(0, 20)
-            ) && // Verificar inicio del mensaje
-            lastMessage.timestamp >= Math.floor(beforeTimestamp / 1000) - 5; // Timestamp cercano
-
-          if (isOurMessage) {
-            logger.info("✅ Message successfully verified in chat");
-
-            // Marcar este chat como que acabamos de enviar un mensaje
-            this.recentlySentMessages.set(validation.chatId, Date.now());
-            logger.debug(`📝 Marked chat ${validation.chatId} as recently sent`);
-
-            return {
-              success: true,
-              formattedNumber: validation.formattedNumber,
-              messageId: lastMessage.id?._serialized || "verified",
-              verificationMethod: "chat_verification",
-            };
-          } else {
-            logger.warn("⚠️ Could not verify message in chat");
-            // Aún así, considerarlo éxito si no hubo error en sendMessage
-            if (sentMessage === undefined) {
-              logger.info(
-                "✅ Assuming success (undefined response but no error)"
-              );
-
-              // Marcar este chat como que acabamos de enviar un mensaje
-              this.recentlySentMessages.set(validation.chatId, Date.now());
-              logger.debug(`📝 Marked chat ${validation.chatId} as recently sent`);
-
-              return {
-                success: true,
-                formattedNumber: validation.formattedNumber,
-                messageId: "assumed_success",
-                verificationMethod: "no_error_assumption",
-              };
-            }
-          }
-        } catch (chatError) {
-          logger.error("Error verifying chat:", chatError.message);
-          // Si no podemos verificar el chat pero no hubo error en send, asumir éxito
-          if (sentMessage === undefined) {
-            logger.info(
-              "✅ Assuming success (could not verify chat but no send error)"
-            );
-
-            // Marcar este chat como que acabamos de enviar un mensaje
-            this.recentlySentMessages.set(validation.chatId, Date.now());
-            logger.debug(`📝 Marked chat ${validation.chatId} as recently sent`);
-
-            return {
-              success: true,
-              formattedNumber: validation.formattedNumber,
-              messageId: "unverified_success",
-              verificationMethod: "send_no_error",
-            };
-          }
-        }
-
-        // Si llegamos aquí y sentMessage no es undefined, usarlo normalmente
-        if (sentMessage && sentMessage !== undefined) {
-          logger.info(`✅ Message sent with proper response`);
-
-          // Marcar este chat como que acabamos de enviar un mensaje
-          this.recentlySentMessages.set(validation.chatId, Date.now());
-          logger.debug(`📝 Marked chat ${validation.chatId} as recently sent`);
-
-          return {
-            success: true,
-            formattedNumber: validation.formattedNumber,
-            messageId: sentMessage.id?._serialized || "normal_response",
-            verificationMethod: "normal_response",
-          };
-        }
-
-        // Si nada de lo anterior funcionó, marcar como error
-        throw new Error("Could not verify message delivery");
+        return {
+          success: true,
+          formattedNumber: validation.formattedNumber,
+          messageId: sentMessage.key.id,
+          verificationMethod: "baileys_send",
+        };
       } catch (error) {
         logger.error(`❌ Send failed for ${phoneNumber}: ${error.message}`);
         return {
@@ -500,16 +433,21 @@ class WhatsAppService {
       };
     }
   }
+
   async getClientInfo() {
     try {
       await this.ensureStableConnection();
-      const info = await this.client.info;
+
+      // Get user info from socket
+      const userJid = this.sock.user?.id;
+      const userName = this.sock.user?.name;
+
       return {
         isReady: this.isReady,
         isStable: this.isStable,
-        number: info.wid?.user,
-        pushname: info.pushname,
-        platform: info.platform,
+        number: userJid?.split("@")[0],
+        pushname: userName,
+        platform: "baileys",
       };
     } catch (error) {
       return {
@@ -522,13 +460,16 @@ class WhatsAppService {
 
   async destroy() {
     try {
-      await this.client.destroy();
+      if (this.sock) {
+        await this.sock.logout();
+      }
     } catch (error) {
       logger.error("Error destroying client:", error);
     } finally {
       this.isReady = false;
       this.isConnecting = false;
       this.isStable = false;
+      this.sock = null;
     }
   }
 }

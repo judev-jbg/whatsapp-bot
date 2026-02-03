@@ -133,8 +133,6 @@ class AutoReplyService {
    */
   async sendAutoReply(originalMessage, replyText) {
     try {
-      const chat = await originalMessage.getChat();
-
       // Pequeña demora para parecer más natural
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
@@ -145,8 +143,10 @@ class AutoReplyService {
         Date.now()
       );
 
-      // Enviar mensaje
-      await chat.sendMessage(replyText);
+      // Enviar mensaje usando Baileys a través del servicio de WhatsApp
+      await this.whatsappService.sock.sendMessage(originalMessage.from, {
+        text: replyText,
+      });
 
       logger.info(`📤 Auto-reply sent to ${originalMessage.from}`);
     } catch (error) {
@@ -160,8 +160,11 @@ class AutoReplyService {
    */
   async markAsUnread(message) {
     try {
-      const chat = await message.getChat();
-      await chat.markUnread();
+      // Marcar como no leído usando Baileys
+      await this.whatsappService.sock.chatModify(
+        { markRead: false },
+        message.from
+      );
       logger.info(`📌 Message marked as unread for ${message.from}`);
     } catch (error) {
       logger.error("Error marking message as unread:", error);

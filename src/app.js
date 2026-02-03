@@ -46,8 +46,8 @@ class ShippingNotificationApp {
       const clientInfo = await this.whatsapp.getClientInfo();
       logger.info("WhatsApp Client Info:", clientInfo);
 
-      // Iniciar monitor de conexión
-      this.connectionMonitor.startMonitoring();
+      // Nota: ConnectionMonitor desactivado - Baileys maneja reconexiones automáticamente
+      // this.connectionMonitor.startMonitoring();
 
       // Configurar cron job - todos los días a las 8:30 AM
       cron.schedule(
